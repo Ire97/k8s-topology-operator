@@ -1,0 +1,12 @@
+domain: unict.it
+layout:
+- quarkus.javaoperatorsdk.io/v1-alpha
+projectName: k8s-topology-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: unict.it
+  kind: Topology
+  version: v1alpha1
+version: "3"
