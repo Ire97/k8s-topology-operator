@@ -7,13 +7,13 @@ public class TopologySpec {
     // Add Spec information here
     private List<String> nodes;
 
-    private Integer rescheduleInterval;
+    private Integer runInterval;
 
     public List<String> getNodes() {
         return nodes;
     }
 
     public Integer getRunInterval() {
-        return rescheduleInterval;
+        return runInterval;
     }
 }
