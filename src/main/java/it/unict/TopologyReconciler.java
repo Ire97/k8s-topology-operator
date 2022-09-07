@@ -7,6 +7,8 @@ import io.javaoperatorsdk.operator.api.reconciler.Reconciler;
 import io.javaoperatorsdk.operator.api.reconciler.UpdateControl;
 import it.unict.telemetry.TelemetryService;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.Map;
@@ -14,6 +16,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class TopologyReconciler implements Reconciler<Topology> {
+
+  private static final Logger log = LoggerFactory.getLogger(TopologyReconciler.class);
   private final KubernetesClient client;
 
   @RestClient
@@ -59,10 +63,15 @@ public class TopologyReconciler implements Reconciler<Topology> {
       Node node = client.nodes().withName(nodeName).get();
 
       if (latencyValues.containsKey(nodeName)) {
-        latencyValues.get(nodeName).forEach((key, value) -> node.getMetadata().getLabels().put(
+        latencyValues.get(nodeName).forEach((key, value) -> {
+          int networkCost = (oldRange == 0) ? minCost : ((value.intValue() - finalLowest) * newRange / oldRange) + minCost;
+          log.info("Network cost between nodes {} and {}: {}", nodeName, key, networkCost);
+
+          node.getMetadata().getLabels().put(
                 "network.cost." + key,
-                String.valueOf((oldRange == 0) ? minCost : ((value.intValue() - finalLowest) * newRange / oldRange) + minCost)
-        ));
+                String.valueOf(networkCost)
+          );
+        });
       }
 
       node.getMetadata().getLabels().put(
@@ -72,6 +81,8 @@ public class TopologyReconciler implements Reconciler<Topology> {
 
       client.nodes().withName(nodeName).patch(node);
     });
+
+    log.info("------------------------------------");
 
     return UpdateControl.<Topology>noUpdate().rescheduleAfter(resource.getSpec().getRunInterval(), TimeUnit.SECONDS);
   }
