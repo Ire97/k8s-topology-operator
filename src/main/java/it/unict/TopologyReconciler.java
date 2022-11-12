@@ -12,6 +12,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -59,9 +61,35 @@ public class TopologyReconciler implements Reconciler<Topology> {
     int finalHighest = highest;
     int oldRange = finalHighest - finalLowest;
 
-    resource.getSpec().getNodes().forEach(nodeName -> {
-      Node node = client.nodes().withName(nodeName).get();
+    List<String> nodeHostList =  resource.getSpec().getNodes();
+    Map<String, String> nodeSelectorMap = resource.getSpec().getNodeSelector();
+    List<Node> nodeList = new ArrayList();
 
+    if(nodeHostList != null){
+      log.info("Selected Nodes: ");
+      for(String nodeName : nodeHostList){
+        log.info("- {}", nodeName);
+        nodeList.add(client.nodes().withName(nodeName).get());
+      }
+    }else if(nodeSelectorMap != null){
+      for(String s : nodeSelectorMap.keySet()){
+        nodeList = client.nodes().withLabel(s, nodeSelectorMap.get(s)).list().getItems();
+        log.info("Selected Nodes by NodeSelector: ");
+        for(Node n : nodeList){
+          log.info("- {}", n.getMetadata().getLabels().get("kubernetes.io/hostname"));
+        }
+      }
+    }else{
+      nodeList = client.nodes().list().getItems();
+      log.info("Selected Nodes by Kubernetes: ");
+      for(Node n : nodeList){
+        log.info("- {}", n.getMetadata().getLabels().get("kubernetes.io/hostname"));
+      }
+    }
+    log.info("------------------------------------");
+
+    nodeList.forEach(node -> {
+      String nodeName = node.getMetadata().getLabels().get("kubernetes.io/hostname");
       if (latencyValues.containsKey(nodeName)) {
         latencyValues.get(nodeName).forEach((key, value) -> {
           int networkCost = (oldRange == 0) ? minCost : ((value.intValue() - finalLowest) * newRange / oldRange) + minCost;
@@ -87,4 +115,3 @@ public class TopologyReconciler implements Reconciler<Topology> {
     return UpdateControl.<Topology>noUpdate().rescheduleAfter(resource.getSpec().getRunInterval(), TimeUnit.SECONDS);
   }
 }
-

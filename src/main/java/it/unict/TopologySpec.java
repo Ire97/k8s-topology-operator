@@ -1,6 +1,7 @@
 package it.unict;
 
 import java.util.List;
+import java.util.Map;
 
 public class TopologySpec {
 
@@ -9,11 +10,17 @@ public class TopologySpec {
 
     private Integer runInterval;
 
+    private Map<String, String> nodeSelector;
+
     public List<String> getNodes() {
         return nodes;
     }
 
     public Integer getRunInterval() {
         return runInterval;
+    }
+
+    public Map<String, String> getNodeSelector(){
+        return nodeSelector;
     }
 }
