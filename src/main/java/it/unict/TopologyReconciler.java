@@ -1,6 +1,6 @@
 package it.unict;
 
-import io.fabric8.kubernetes.api.model.Node;
+import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.javaoperatorsdk.operator.api.reconciler.Context;
 import io.javaoperatorsdk.operator.api.reconciler.Reconciler;
@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
@@ -35,6 +36,17 @@ public class TopologyReconciler implements Reconciler<Topology> {
 
   @Override
   public UpdateControl<Topology> reconcile(Topology resource, Context context) {
+    List<String> nodeNameList =  resource.getSpec().getNodes();
+    Map<String, String> nodeSelectorMap = resource.getSpec().getNodeSelector();
+    List<Node> nodeList = new ArrayList<>();
+
+    if(nodeNameList != null){
+      nodeList = nodeNameList.stream().map(n-> client.nodes().withName(n).get()).collect(Collectors.toList());
+    }else{
+      nodeList = client.nodes().withLabelSelector(new LabelSelectorBuilder().withMatchLabels(nodeSelectorMap).build()).list().getItems();
+      nodeNameList = nodeList.stream().map(n-> n.getMetadata().getName()).collect(Collectors.toList());
+    }
+
     int highest = 0;
     int lowest = 0;
 
@@ -61,35 +73,8 @@ public class TopologyReconciler implements Reconciler<Topology> {
     int finalHighest = highest;
     int oldRange = finalHighest - finalLowest;
 
-    List<String> nodeHostList =  resource.getSpec().getNodes();
-    Map<String, String> nodeSelectorMap = resource.getSpec().getNodeSelector();
-    List<Node> nodeList = new ArrayList();
-
-    if(nodeHostList != null){
-      log.info("Selected Nodes: ");
-      for(String nodeName : nodeHostList){
-        log.info("- {}", nodeName);
-        nodeList.add(client.nodes().withName(nodeName).get());
-      }
-    }else if(nodeSelectorMap != null){
-      for(String s : nodeSelectorMap.keySet()){
-        nodeList = client.nodes().withLabel(s, nodeSelectorMap.get(s)).list().getItems();
-        log.info("Selected Nodes by NodeSelector: ");
-        for(Node n : nodeList){
-          log.info("- {}", n.getMetadata().getLabels().get("kubernetes.io/hostname"));
-        }
-      }
-    }else{
-      nodeList = client.nodes().list().getItems();
-      log.info("Selected Nodes by Kubernetes: ");
-      for(Node n : nodeList){
-        log.info("- {}", n.getMetadata().getLabels().get("kubernetes.io/hostname"));
-      }
-    }
-    log.info("------------------------------------");
-
     nodeList.forEach(node -> {
-      String nodeName = node.getMetadata().getLabels().get("kubernetes.io/hostname");
+      String nodeName = node.getMetadata().getName();
       if (latencyValues.containsKey(nodeName)) {
         latencyValues.get(nodeName).forEach((key, value) -> {
           int networkCost = (oldRange == 0) ? minCost : ((value.intValue() - finalLowest) * newRange / oldRange) + minCost;
